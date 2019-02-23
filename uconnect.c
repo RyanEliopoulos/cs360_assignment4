@@ -84,6 +84,7 @@ void main(int argc, char*argv[]) {
     /* initial fork. Parent argv will be updated afterward */  
     /* only get here if there are at least two command-line arguments */
     if (fork()) {
+
         close(wtr);
         /* now we determine if we begin a fork loop */
         /* adjust parent_argv and argc */
@@ -111,6 +112,10 @@ void main(int argc, char*argv[]) {
         /* this is where the fork loop would be */
         /* skipping for now */
 
+        
+        ////////////////////////
+        ////////////////////////
+        ////////////////////////
 
         /* this is where we go after the fork loop ends */
         /* and the final program is exec'ed */
