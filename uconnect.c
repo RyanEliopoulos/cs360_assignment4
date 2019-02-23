@@ -21,14 +21,13 @@ int readWrapper(int, char*, int);
 
 int nextArg(char *[], int);
 
+void screenArgs(int, char*[]);
+
 void main(int argc, char*argv[]) {
 
-    /* check for args */
-    if (argc == 1) {
-        fprintf(stderr, "Need more args\n");
-        exit(1);
-    }
 
+    screenArgs(argc, argv);
+    
     /* at least one command line arg to process */
     char **parent_argv;    
     parent_argv = argv + 1; // first argument not itself
@@ -85,6 +84,8 @@ void main(int argc, char*argv[]) {
     /* only get here if there are at least two command-line arguments */
     if (fork()) {
 
+       
+         
         close(wtr);
         /* now we determine if we begin a fork loop */
         /* adjust parent_argv and argc */
@@ -137,6 +138,40 @@ void main(int argc, char*argv[]) {
     else {
         close(rdr);
         execvp(child_argv[0], child_argv);
+    }
+}
+
+
+/* checks argv for any syntax violations */
+/* can't start or end with a : */
+/* there can't be two : in a row */
+void screenArgs(int argc, char*argv[]) {
+
+    /* check for args */
+    if (argc == 1) {
+        fprintf(stderr, "Need at least one argument\n");
+        exit(ARG_ERR);
+    }
+
+    /* check args don't begin with : */
+    if (!strcmp(":", argv[1])) {
+        fprintf(stderr, "Arguments cannot being with a ':'\n");
+        exit(ARG_ERR);
+    }
+
+    /* check args dont end with : */
+    if (!strcmp(":", argv[argc-1])) {
+        fprintf(stderr, "Arguments cannot end with a ':'\n");
+        exit(ARG_ERR);
+    }  
+  
+    /* now check for consecutive : */  
+    for (int i = 1; i < argc; i++) {
+        if (!strcmp(":", argv[i]) && !strcmp(argv[i], argv[i-1])) {
+            fprintf(stderr, "Cannot have consecutive ':' symbols\n");
+            fprintf(stderr, "Check symbol at position %d\n", i);
+            exit(ARG_ERR);
+        } 
     }
 }
 
