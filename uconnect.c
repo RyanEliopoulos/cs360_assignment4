@@ -6,7 +6,6 @@
 #define EXEC_ERR 2   /* execvp() failure */
 #define DUP_ERR 3    /* dup2 failure */
 #define READ_ERR 4   /* read failure */
-#define FIN_COL 5    /* last command-line arg was a : */
 #define ARG_ERR 6    /* command-line argument problem */
 
 
@@ -20,7 +19,7 @@ int readWrapper(int, char*, int);
 
 void pipeWrapper(int[]);
 /* finds the offset from char*[] of the next colon */
-int nextArg(char *[], int);
+int nextArg(int, char*[]);
 
 /* screens for syntax errors */
 /* can't begin or end with : */
@@ -43,7 +42,7 @@ void main(int argc, char*argv[]) {
 
     /* first check if there are any pipes at all*/
     int pipe_index;
-    if ( (pipe_index = nextArg(parent_argv, argc)) == 0 ) {  /* true if no pipes in command list */
+    if ( (pipe_index = nextArg(argc, parent_argv)) == 0 ) {  /* true if no pipes in command list */
         printf("dropping into the pipe\n");
         execvpWrapper(*parent_argv, parent_argv); 
     }
@@ -84,40 +83,21 @@ void main(int argc, char*argv[]) {
     /* initial fork. Parent argv will be updated afterward */  
     /* only get here if there are at least two command-line arguments */
     if (fork()) {
-
-       
-         
         close(wtr);
-        /* now we determine if we begin a fork loop */
-        /* adjust parent_argv and argc */
-        argc -= pipe_index; // new index for parent_argv
-        
-        // DEBUG
-        dprintf(fout, "dprint: argc is %d\n", argc);
-        /* check for edge case - last argv arg is a : */ 
-        if (argc == 1) {
-            fprintf(stderr, "Final argument cannot be a :\n");
-            exit(FIN_COL);
-        }
 
-         
-        /* at least one more set of strings to parse */
-        /* begin fork loop to process the remainders */
-        parent_argv += pipe_index + 1;  // +1 because we don't actually want the : 
+        /* now update parent_arg info to see if there are further pipes */
+        argc = --argc - pipe_index;  /* -- because the : is being skipped */
+        parent_argv += pipe_index + 1;  // +1 because : is being skipped */
+
         dprintf(fout, "parent_argv points at %s\n", *parent_argv);
+        dprintf(fout, "Argc is %d\n parent_argv:%s\n", argc, *parent_argv); 
 
-        if (!strcmp(":", *parent_argv)) {
-            fprintf(stderr, "final argument cannot be a :\n");
-            exit(ARG_ERR);
-        }
+        while(nextArg(argc, parent_argv)) {
+            // fork loop here
+        } 
 
-        /* this is where the fork loop would be */
-        /* skipping for now */ 
-        
-        ////////////////////////
-        ////////////////////////
-        ////////////////////////
 
+        dprintf(fout, "here????\n");
         /* this is where we go after the fork loop ends */
         /* and the final program is exec'ed */
         dup2(fout, 1); // set fd 1 to stdout from reserved fd
@@ -187,8 +167,8 @@ int readWrapper(int fd, char *buf, int count) {
 
 /* returns offset of next : separator */
 /* or 0 if there isn't one */
-int nextArg(char* parent_argv[], int argc) {
-
+int nextArg(int argc, char* parent_argv[]) {
+    printf("in nxt arg\n");
     for (int i = 1; i < argc; i++) { /* p_argv[0] will never be a colon */
         if (!strcmp(":", *(parent_argv + i))) return i;
     }
