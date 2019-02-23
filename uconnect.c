@@ -10,7 +10,6 @@
 #define ARG_ERR 6    /* command-line argument problem */
 
 
-
 #include<stdlib.h>
 #include<stdio.h>
 #include<unistd.h>
@@ -19,40 +18,44 @@
 
 int readWrapper(int, char*, int);
 
+void pipeWrapper(int[]);
+/* finds the offset from char*[] of the next colon */
 int nextArg(char *[], int);
 
+/* screens for syntax errors */
+/* can't begin or end with : */
+/* consecutive : are forbidden */
 void screenArgs(int, char*[]);
 
+void execvpWrapper(char *, char*[]);
+
 void main(int argc, char*argv[]) {
-
-
+   
+    /* check syntax of command line arguments */ 
     screenArgs(argc, argv);
-    
     /* at least one command line arg to process */
+
+    /* index argv to track argument processing */ 
     char **parent_argv;    
     parent_argv = argv + 1; // first argument not itself
     argc--;  //  argc tracks parent_argv now
 
 
-    /* find index of next : or find out there isn't one */
-    int nxt_arg;
-    if ( (nxt_arg = nextArg(parent_argv, argc)) == -1 ) { // if there were no separators
-        printf("exec time\n");
-            if (execvp(*parent_argv, parent_argv)) {
-                fprintf(stderr, "error occurred\n%s\n", strerror(errno));
-                exit(EXEC_ERR);
-            }
+    /* first check if there are any pipes at all*/
+    int pipe_index;
+    if ( (pipe_index = nextArg(parent_argv, argc)) == 0 ) {  /* true if no pipes in command list */
+        printf("dropping into the pipe\n");
+        execvpWrapper(*parent_argv, parent_argv); 
     }
 
-    printf("next arg is %d\n", nxt_arg);    
+    printf("hello for reference\n"); 
+    /* there is at least one pipe and two progs */
+    /* prepare for forking */
 
-    /* check if the first arg is a : */ 
-    if (nxt_arg == 0) {
-        fprintf(stderr, ": is not a valid command\n");
-        exit(1);
-    }
+    /* find next : */
 
-    /* there is at least one :, so forking begins */
+    printf("next is at offset: %d\n", pipe_index);    
+
     /* need to save stdout for the final parent */
     int fout; 
     if ((fout = dup2(1, 9)) == -1) {
@@ -60,6 +63,7 @@ void main(int argc, char*argv[]) {
         exit(DUP_ERR);
     }
     printf("prepping file descriptors\n");
+
     /* set file descriptors properly */
     close(0);
     close(1);    
@@ -67,10 +71,7 @@ void main(int argc, char*argv[]) {
     int fd[2];
     int rdr, wtr;
 
-    if (pipe(fd) == -1) {
-        fprintf(stderr, "error opening pipe\n%s\n", strerror(errno));
-        exit(PIPE_ERR);
-    }
+    pipeWrapper(fd);
     
     rdr = fd[0];
     wtr = fd[1];
@@ -78,7 +79,7 @@ void main(int argc, char*argv[]) {
     /* demarcate child args */
     char *child_argv[argc];
     child_argv[0] = *parent_argv; /* marking arg list beginning */
-    child_argv[nxt_arg] = (char *)0; /* terminate args */
+    child_argv[pipe_index] = (char *)0; /* terminate args */
     
     /* initial fork. Parent argv will be updated afterward */  
     /* only get here if there are at least two command-line arguments */
@@ -89,7 +90,7 @@ void main(int argc, char*argv[]) {
         close(wtr);
         /* now we determine if we begin a fork loop */
         /* adjust parent_argv and argc */
-        argc -= nxt_arg; // new index for parent_argv
+        argc -= pipe_index; // new index for parent_argv
         
         // DEBUG
         dprintf(fout, "dprint: argc is %d\n", argc);
@@ -102,7 +103,7 @@ void main(int argc, char*argv[]) {
          
         /* at least one more set of strings to parse */
         /* begin fork loop to process the remainders */
-        parent_argv += nxt_arg + 1;  // +1 because we don't actually want the : 
+        parent_argv += pipe_index + 1;  // +1 because we don't actually want the : 
         dprintf(fout, "parent_argv points at %s\n", *parent_argv);
 
         if (!strcmp(":", *parent_argv)) {
@@ -111,8 +112,7 @@ void main(int argc, char*argv[]) {
         }
 
         /* this is where the fork loop would be */
-        /* skipping for now */
-
+        /* skipping for now */ 
         
         ////////////////////////
         ////////////////////////
@@ -186,18 +186,36 @@ int readWrapper(int fd, char *buf, int count) {
 }
 
 /* returns offset of next : separator */
-/* if 0 is returned the caller should adjust  */
-/* parent_argv + 1 and call again */
+/* or 0 if there isn't one */
 int nextArg(char* parent_argv[], int argc) {
 
+    for (int i = 1; i < argc; i++) { /* p_argv[0] will never be a colon */
+        if (!strcmp(":", *(parent_argv + i))) return i;
+    }
+    return 0;
+    /*
     int i = 0;
     while (parent_argv[i] != NULL) {
         if (!strcmp(":", parent_argv[i])) return i; 
         i++;
     }
     return -1; // means no more : in argv
+    */
 }
 
 
+void pipeWrapper(int fd[]) {
+    
+    if (pipe(fd) == -1) {
+        fprintf(stderr, "pipe error\n");
+        exit(PIPE_ERR);
+    }
+}
+void execvpWrapper(char *prog, char*prog_args[]) {
 
+    if (execvp(prog, prog_args)) {
+        fprintf(stderr, "Execvp failed\n%s\n", strerror(errno));
+        exit(EXEC_ERR);
+    }
+}
 
