@@ -15,6 +15,8 @@
 #include<string.h>
 #include<errno.h>
 
+void populateChildArgs(char*[], char**, int);
+void argPrinter(char *[]);
 int readWrapper(int, char*, int);
 
 void pipeWrapper(int[]);
@@ -77,9 +79,17 @@ void main(int argc, char*argv[]) {
 
     /* demarcate child args */
     char *child_argv[argc];
-    child_argv[0] = *parent_argv; /* marking arg list beginning */
-    child_argv[pipe_index] = (char *)0; /* terminate args */
-    
+    //child_argv[0] = *parent_argv; /* marking arg list beginning */
+    //child_argv[pipe_index] = (char *)0; /* terminate args */
+
+    /* testing new copy arg */
+    populateChildArgs(child_argv, parent_argv, pipe_index);
+    /* end test */
+
+    /* need a "copyArgs" command to populate child_args with everything from parent */ 
+
+
+    argPrinter(child_argv); 
     /* initial fork. Parent argv will be updated afterward */  
     /* only get here if there are at least two command-line arguments */
     if (fork()) {
@@ -113,8 +123,8 @@ void main(int argc, char*argv[]) {
 
             
             /* need to adjust parent_arg and child_arg values */
-            child_argv[0] = *parent_argv;
-            child_argv[pipe_index] = (char *)0;
+            populateChildArgs(child_argv, parent_argv, pipe_index);
+            argPrinter(child_argv);
 
             argc = --argc - pipe_index; 
             parent_argv += pipe_index + 1;
@@ -251,6 +261,13 @@ int nextArg(int argc, char* parent_argv[]) {
     */
 }
 
+void populateChildArgs(char *child_argv[], char **parent_argv, int index) {
+
+    for (int i = 0; i < index; i++) {
+        child_argv[i] = *(parent_argv + i);
+    }
+    child_argv[index] = (char *)0;
+}
 
 void pipeWrapper(int fd[]) {
     
@@ -267,3 +284,10 @@ void execvpWrapper(char *prog, char*prog_args[]) {
     }
 }
 
+void argPrinter(char *args[]) {
+    
+    int i = 0;
+    while (args[i] != NULL) {
+        dprintf(9, "argPrinter i:%d and arg: <%s>\n", i, args[i++]);
+    }  
+}
