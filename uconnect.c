@@ -83,7 +83,12 @@ void main(int argc, char*argv[]) {
     /* initial fork. Parent argv will be updated afterward */  
     /* only get here if there are at least two command-line arguments */
     if (fork()) {
-        close(wtr);
+
+        /* file descriptors */
+        /* 0: current reader */
+        /* 1: curent writer */
+        /* 2: stderr */
+
 
         /* now update parent_arg info to see if there are further pipes */
         argc = --argc - pipe_index;  /* -- because the : is being skipped */
@@ -92,21 +97,77 @@ void main(int argc, char*argv[]) {
         dprintf(fout, "parent_argv points at %s\n", *parent_argv);
         dprintf(fout, "Argc is %d\n parent_argv:%s\n", argc, *parent_argv); 
 
-        while(nextArg(argc, parent_argv)) {
+        while( (pipe_index = nextArg(argc, parent_argv)) > 0) {
             // fork loop here
+            close(wtr);
+
+            pipeWrapper(fd);
+            rdr = fd[0];
+            wtr = fd[1];
+
+            /* file descriptors */
+            /* 0: reading from last from last command */
+            /* 1: current reader */
+            /* 2: stderr */
+            /* 3: current writer */
+
+            
+            /* need to adjust parent_arg and child_arg values */
+            child_argv[0] = *parent_argv;
+            child_argv[pipe_index] = (char *)0;
+
+            argc = --argc - pipe_index; 
+            parent_argv += pipe_index + 1;
+
+            dprintf(fout, "parent argv is %s\n", *parent_argv);
+
+            if (fork()) {
+
+                /* fd maintenance for next loop */
+                /* modify reader position */
+                close(0); /* this is second before last command now */
+                dup(rdr); /* now 0 */
+                close(rdr); /* 1: NOTHING */
+                
+                /* modify writer position */
+                dup(wtr);  /* 1: current writer*/
+                close(wtr); /* 3: nothing */
+                wtr = 1; 
+
+                /* file descriptors */
+                /* 0: current reader */
+                /* 1: current writer */
+                /* 2: stderr */
+            }
+            
+            /* fork child */
+            else {
+                close(rdr); /* this is fd 1 */
+                dup(wtr); /* moves writer to position 1 */
+                close(wtr); 
+                dprintf(fout, "make it here, eh?\n");       
+                /* file descriptors */  
+                /* 0: reading from last command */
+                /* 1: current writer */
+                /* 2: stderr         */
+
+                execvpWrapper(*child_argv, child_argv);
+            }
         } 
 
-
-        dprintf(fout, "here????\n");
         /* this is where we go after the fork loop ends */
         /* and the final program is exec'ed */
+
+        close(wtr);
+        dprintf(fout, "Final chapter ????\n");
+        dprintf(fout, "parent_argv is %s\n", *parent_argv);
         dup2(fout, 1); // set fd 1 to stdout from reserved fd
         close(fout);
         execvp(*parent_argv, parent_argv);
-        dprintf(1, "shouldn't ever get here\n");
-        
-        
-        /* just for debuggin now */
+        dprintf(fout, "shouldn't ever get here\n");
+         
+
+        /* this is the final forked parent printing to stdout */        
         close(wtr);
         char word[10]; 
         while(readWrapper(rdr, word, 1)) {
@@ -168,10 +229,17 @@ int readWrapper(int fd, char *buf, int count) {
 /* returns offset of next : separator */
 /* or 0 if there isn't one */
 int nextArg(int argc, char* parent_argv[]) {
-    printf("in nxt arg\n");
+    dprintf(9, "in nxt arg\n");
+    dprintf(9, "argc is %d\n", argc);
+    dprintf(9, "parent_argv is %s\n", *parent_argv); 
+
     for (int i = 1; i < argc; i++) { /* p_argv[0] will never be a colon */
-        if (!strcmp(":", *(parent_argv + i))) return i;
+        if (!strcmp(":", *(parent_argv + i))) {
+            dprintf(9, "nextArg is returning %d\n", i);
+            return i;
+        }
     }
+    dprintf(9, "nextArg is returning 0\n");
     return 0;
     /*
     int i = 0;
